@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skylark Courier — a flight game over the archipelago</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0c1c2c;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: #f2f2e8; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .hidden { display: none !important; }
+
+  /* ---- HUD ---- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+  .panel { position: absolute; background: rgba(8, 24, 38, 0.62); border: 1px solid rgba(242,242,232,0.35);
+    border-radius: 10px; padding: 10px 14px; backdrop-filter: blur(2px); }
+  #hud-left { top: 14px; left: 14px; min-width: 170px; }
+  #hud-left .big-read { font-size: 26px; font-weight: 700; line-height: 1.15; letter-spacing: 0.5px; }
+  #hud-left .sub-read { font-size: 13px; opacity: 0.9; }
+  #hud-center { top: 14px; left: 50%; transform: translateX(-50%); text-align: center; min-width: 260px; }
+  #hud-heading { font-size: 22px; font-weight: 700; }
+  #hud-compass { font-size: 12px; letter-spacing: 2px; opacity: 0.85; }
+  #hud-right { top: 14px; right: 14px; width: 210px; }
+  #hud-right .row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+  .bar { height: 10px; background: rgba(255,255,255,0.18); border-radius: 5px; overflow: hidden; margin-bottom: 8px; }
+  .bar > div { height: 100%; border-radius: 5px; transition: width 0.15s linear; }
+  #hud-fuel-bar { background: #57c96e; width: 100%; }
+  #hud-throttle-bar { background: #e8a33d; width: 0%; }
+  #hud-damage-bar { background: #e0483e; width: 0%; }
+  #hud-horizon { position: absolute; left: 14px; bottom: 14px; border: 1px solid rgba(242,242,232,0.4);
+    border-radius: 50%; background: rgba(8,24,38,0.55); }
+  #hud-mission { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+    background: rgba(8,24,38,0.62); border: 1px solid rgba(242,242,232,0.35); border-radius: 10px;
+    padding: 8px 16px; font-size: 15px; font-weight: 600; white-space: nowrap; }
+  #hud-timer { position: absolute; left: 50%; bottom: 62px; transform: translateX(-50%);
+    font-size: 15px; font-weight: 700; }
+  #hud-score { position: absolute; right: 14px; bottom: 14px; font-size: 15px; font-weight: 700;
+    background: rgba(8,24,38,0.62); border: 1px solid rgba(242,242,232,0.35); border-radius: 10px; padding: 8px 14px; }
+  #hud-message { position: absolute; left: 50%; top: 22%; transform: translateX(-50%);
+    font-size: 26px; font-weight: 800; letter-spacing: 1px; color: #ffd75e;
+    transition: opacity 0.4s; text-align: center; white-space: nowrap; }
+  #hud-warning { position: absolute; left: 50%; top: 30%; transform: translateX(-50%);
+    font-size: 20px; font-weight: 800; color: #ff6b5e; transition: opacity 0.3s; white-space: nowrap; }
+
+  /* ---- Screens ---- */
+  .screen { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    background: rgba(6, 18, 30, 0.55); padding: 20px; }
+  .screen h1 { font-size: 54px; margin: 0 0 4px; letter-spacing: 2px; color: #ffd75e;
+    text-shadow: 0 3px 12px rgba(0,0,0,0.7); }
+  .screen h2 { font-size: 20px; font-weight: 400; margin: 0 0 22px; opacity: 0.95; }
+  .screen .big { font-size: 30px; font-weight: 800; margin: 0 0 10px; color: #ffd75e; }
+  .screen p { font-size: 16px; max-width: 640px; line-height: 1.5; margin: 6px 0; }
+  #title-missions { display: flex; gap: 14px; margin: 10px 0 18px; flex-wrap: wrap; justify-content: center; }
+  .mission-card { pointer-events: auto; cursor: pointer; width: 220px; text-align: left;
+    background: rgba(12, 34, 52, 0.85); border: 2px solid rgba(255, 215, 94, 0.55); color: #f2f2e8;
+    border-radius: 12px; padding: 14px 16px; font-family: inherit; }
+  .mission-card:hover { border-color: #ffd75e; background: rgba(20, 52, 76, 0.92); }
+  .mission-card strong { display: block; font-size: 19px; margin-bottom: 6px; color: #ffd75e; }
+  .mission-card span { display: block; font-size: 14px; line-height: 1.4; margin-bottom: 8px; }
+  .mission-card em { font-size: 12px; opacity: 0.8; font-style: normal; }
+  .keys { font-size: 13px; opacity: 0.9; line-height: 1.7; }
+  .keys b { background: rgba(255,255,255,0.16); border-radius: 4px; padding: 1px 7px; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Skylark Courier: fly a small prop plane over an island archipelago"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud" class="hidden">
+  <div class="panel" id="hud-left">
+    <div class="big-read" id="hud-airspeed">0 kt</div>
+    <div class="big-read" id="hud-altitude">0 ft</div>
+    <div class="sub-read" id="hud-vertical">+0 fpm</div>
+  </div>
+  <div class="panel" id="hud-center">
+    <div id="hud-heading">000° N</div>
+    <div id="hud-compass"></div>
+  </div>
+  <div class="panel" id="hud-right">
+    <div class="row"><span id="hud-fuel-text">FUEL 100%</span></div>
+    <div class="bar"><div id="hud-fuel-bar"></div></div>
+    <div class="row"><span>THROTTLE</span></div>
+    <div class="bar"><div id="hud-throttle-bar"></div></div>
+    <div class="row"><span>DAMAGE</span></div>
+    <div class="bar"><div id="hud-damage-bar"></div></div>
+  </div>
+  <canvas id="hud-horizon" width="140" height="140"></canvas>
+  <div id="hud-timer">⏱ 4:00</div>
+  <div id="hud-mission">RING RUN</div>
+  <div id="hud-score">SCORE 0</div>
+  <div id="hud-message"></div>
+  <div id="hud-warning"></div>
+</div>
+
+<div class="screen" id="screen-title">
+  <h1>SKYLARK COURIER</h1>
+  <h2>A little prop plane, a whole archipelago, three jobs to fly.</h2>
+  <div id="title-missions"></div>
+  <p class="keys"><b>↑</b><b>↓</b> pitch &nbsp; <b>←</b><b>→</b> bank &amp; turn &nbsp; <b>W</b>/<b>S</b> throttle &nbsp; <b>Space</b> brake &nbsp; <b>1</b><b>2</b><b>3</b> pick a mission &nbsp; <b>P</b> pause &nbsp; <b>M</b> sound &nbsp; drag mouse to look around</p>
+  <p class="keys">Land gently on a strip to count a stop — slow, level, on the centreline. Rings pay 500, landings 800, a delivery 1500.</p>
+</div>
+
+<div class="screen hidden" id="screen-pause">
+  <p class="big">Paused</p>
+  <p>Press P or Esc to keep flying.</p>
+</div>
+
+<div class="screen hidden" id="screen-complete">
+  <div id="complete-body"></div>
+</div>
+
+<div class="screen hidden" id="screen-over">
+  <div id="over-body"></div>
+</div>
+
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
